@@ -40,3 +40,37 @@ Desktop.ini
 # they are fetched by setup_tools.ps1 rather than committed. See ENVIRONMENT.md.
 # ---------------------------------------------------------------------------
 /txw_tools/
+
+# ---------------------------------------------------------------------------
+# CDK build output for the dual-core projects.
+# The vendor patterns above are anchored to /project/, but CDK writes into the
+# per-core directories (project/txw82xCore/, project/txw82xApp/), so those
+# patterns never match the real output. Without the rules below, "git add -A"
+# would stage ~580 MB of Obj/, Lst/ and .cache/ plus the generated firmware.
+# ---------------------------------------------------------------------------
+/project/.cdk/
+/project/cdkws.mk
+/project/*/*.mk
+/project/*/Obj/
+/project/*/Lst/
+/project/*/bakup/
+/project/*/tmp/
+/project/*/.cache/
+/project/*/*.o
+/project/*/*.d
+/project/*/*.elf
+/project/*/*.map
+/project/*/*.hex
+/project/*/*.ihex
+/project/*/*.bak
+/project/*/parameter_ui.setcfg
+/project/*/*.modify.bat
+/project/*/APP.bin
+/project/*/APP_PSRAM.bin
+/project/*/app.bin
+/project/*/param.bin
+/project/*/program.bin
+/project/*/loader.bin
+/project/*/code512.bin
+/project/*/project_merge.bin
+/project/*/txw82xApp*.bin

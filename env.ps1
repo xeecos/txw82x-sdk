@@ -10,9 +10,26 @@ $ErrorActionPreference = 'Stop'
 $ToolchainRoot = 'D:\Projects\txw82x_sdk\txw_tools\csky-elfabiv2'
 $SdkRoot       = 'D:\Projects\txw82x_sdk'
 
+# XuanTie CDK is required to build the SDK. Needed here for two things: reporting
+# whether it is present, and locating the 32-bit libexpat-1.dll that gdb needs.
+$CdkRoot = $env:CDK_ROOT
+if (-not $CdkRoot) {
+    foreach ($candidate in @('D:\C-SKY\CDK', 'C:\C-SKY\CDK', 'C:\XuanTie\CDK')) {
+        if (Test-Path (Join-Path $candidate 'cdk-make.exe')) { $CdkRoot = $candidate; break }
+    }
+}
+if ($CdkRoot) { $env:CDK_ROOT = $CdkRoot }
+
 $env:TXW_SDK_ROOT   = $SdkRoot
 $env:CSKY_TOOLCHAIN = $ToolchainRoot
 $env:Path           = "$ToolchainRoot\bin;$env:Path"
+
+# The standalone toolchain's gdb.exe is a 32-bit build needing libexpat-1.dll, which that
+# package does not ship; CDK installs a matching 32-bit copy under its MinGW runtime.
+# Appended rather than prepended so CDK's make.exe and DLLs cannot shadow anything else
+# on PATH - Windows searches the whole PATH when resolving a dependent DLL.
+$cskyMinGW = if ($CdkRoot) { Join-Path $CdkRoot 'CSKY\MinGW\bin' }
+if ($cskyMinGW -and (Test-Path $cskyMinGW)) { $env:Path = "$env:Path;$cskyMinGW" }
 
 Write-Host 'TXW82x / TXW828 development environment' -ForegroundColor Cyan
 Write-Host "  SDK       : $SdkRoot"
@@ -26,20 +43,18 @@ if (Test-Path $gcc) {
     Write-Warning "Compiler not found at $gcc"
 }
 
-# The standalone public toolchain ships gdb.exe without libexpat-1.dll, so gdb
-# cannot start until XuanTie CDK (which provides a complete toolchain) is installed.
 $gdb = Join-Path $ToolchainRoot 'bin\csky-elfabiv2-gdb.exe'
 if (Test-Path $gdb) {
-    $null = & $gdb --version 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host '  GDB       : NOT USABLE - libexpat-1.dll missing (install XuanTie CDK)' -ForegroundColor Yellow
+    $gdbVer = & $gdb --version 2>&1 | Select-Object -First 1
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  GDB       : $gdbVer"
     } else {
-        Write-Host '  GDB       : ok'
+        Write-Host '  GDB       : NOT USABLE - libexpat-1.dll missing (install XuanTie CDK)' -ForegroundColor Yellow
     }
 }
 
-if ($env:CDK_ROOT) {
-    Write-Host "  CDK       : $env:CDK_ROOT"
+if ($CdkRoot) {
+    Write-Host "  CDK       : $CdkRoot"
 } else {
-    Write-Host '  CDK       : not configured (set CDK_ROOT after installing XuanTie CDK)' -ForegroundColor Yellow
+    Write-Host '  CDK       : not found - required to build, see ENVIRONMENT.md section 5' -ForegroundColor Yellow
 }

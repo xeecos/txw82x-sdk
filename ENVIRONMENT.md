@@ -49,10 +49,13 @@ D:\Projects\txw82x_sdk\               <- 项目根，同时是 git 仓库
 
 | 组件 | 版本 / 标识 | 位置 | 状态 |
 | --- | --- | --- | --- |
-| SDK | `TXW82x_FPV` v2.7.1.7（release `v2.7.1.7-44398`），3893 个文件 | `D:\Projects\txw82x_sdk` | 已克隆（git，分支 `v2.7.1.7`） |
+| SDK | `TXW82x_FPV` v2.7.1.7（release `v2.7.1.7-44398`），3893 个文件 | `D:\Projects\txw82x_sdk` | 已克隆（git） |
 | C-SKY GCC | Xuantie-800 Tools V3.10.33 Minilibc abiv2 B20250328，GCC **6.3.0** | `txw_tools\csky-elfabiv2` | 已解压并验证可用 |
-| XuanTie DebugServer | V5.18.10-20260603（InstallShield 安装包） | `txw_tools\xuantie-debugserver\` | 已解压，**安装程序待运行** |
+| **XuanTie CDK** | 安装于 `D:\C-SKY\CDK`，含 `cdk-make.exe` | `D:\C-SKY\CDK` | **已安装**，编译和调试都靠它 |
+| XuanTie DebugServer | V5.18.10-20260603 | 随 CDK 装在 `D:\C-SKY\CDKRepo\DebugServer`；`txw_tools\xuantie-debugserver\` 另存了独立安装包 | 已可用 |
 | 下载缓存 | — | `txw_tools\dl` | 已保留原始压缩包，可随时删除 |
+
+> SDK 官方 README 要求 Windows + XuanTie CDK，本机已满足。
 
 下载文件的 SHA256 已与厂商 README 公布值**逐字节比对一致**：
 
@@ -65,6 +68,8 @@ D:\Projects\txw82x_sdk\               <- 项目根，同时是 git 仓库
 
 `txw_tools/`（工具链等约 412 MB 二进制）**不入库**，忽略规则写在 `.gitignore` 末尾的 `/txw_tools/`。
 这条规则会随仓库分发，所以任何人克隆下来都不会误把工具链提交进去。环境脚本和文档都正常入库。
+
+CDK 的构建产物（`Obj/`、`Lst/`、`.cache/`、`*.elf`、`APP.bin` 等）同样不入库，相关规则和原因见第 7 节限制 4。
 
 克隆后重建工具链只要一条命令（自动下载并校验 SHA256，哈希值见上一节）：
 
@@ -146,20 +151,20 @@ CONFIG_UMAC4  FW_INFO  CPU_CK804DF  CONFIG_SLEEP
 SDK 的编译**必须通过 XuanTie CDK**（`cdk-make.exe`），官方 README 明确写了本版本仅支持 Windows + CDK，
 CDS/Linux 构建环境「尚未准备和验证」。**CDK 是本次唯一需要手动完成的步骤。**
 
-### 5.1 手动安装 CDK
+### 5.1 CDK（本机已安装）
+
+**本机已装好**：`D:\C-SKY\CDK\cdk-make.exe` 存在。`env.ps1`、`env.cmd`、`build.ps1` 都会自动探测它，不用手动设
+`CDK_ROOT`（想显式指定时才需要）。
+
+换一台机器才需要手动安装：
 
 1. 打开 <https://www.xrvm.cn/soft-tools/tools/CDK>（或资源中心 <https://www.xrvm.cn/community/download?id=4119141468164132864>）。
 2. 下载 Windows 版：当前最新为 `cdk-windows-V2.24.19-20260427-1707.zip`（约 1.66 GB）。
    厂商文档里写的最低版本是 `cdk-windows-2.24.14.zip`，两者都可以。
 3. 解压后运行 `setup.exe`，按向导完成安装（建议装在 D 盘默认路径）。
-4. 安装后设置环境变量，或给脚本传参：
+4. 若装在非默认路径：`setx CDK_ROOT "<你的 CDK 路径>"`。
 
-```powershell
-setx CDK_ROOT "D:\C-SKY\CDK"
-```
-
-> CDK 自带完整的编译器与 GDB，装好后 `env.ps1` 里显示的 GDB 告警即可忽略
-> （见第 7 节的 `libexpat` 说明）。
+> CDK 的安装目录还顺带补上了 GDB 缺的那个 DLL，见第 7 节。
 
 ### 5.2 命令行编译
 
@@ -216,21 +221,30 @@ cdk-make.exe -p .\project\txw82xApp\txw82xApp.cdkproj   -d build -c FLASH
   - `txw82xCore`：`-mcpu=e804d -O3 -g3` → 通过
 - 工具链的合法 `-mcpu` 名称是 `e804d / e804df / e804dt / e804dft` 等；CDK 工程里写的
   `CPU_CK804DF` 是宏名，**不是** `-mcpu` 的取值（`-mcpu=ck804df` 会被拒绝）。
+- **GDB 可用**：`GNU gdb (Xuantie-800 Tools V3.10.33 Minilibc abiv2) 7.12`，目标架构自动识别为 `csky`。
+  修复方式见下面限制 1。
+- **完整固件已成功编译**（CDK，`txw82xCore` → `txw82xApp`）：产出 `project/txw82xApp/APP.bin` 和
+  `project.elf`（ELF32 / Machine: CSKY / 入口 `0x10068f20`），以及打包后的
+  `txw82xApp_v2.7.1.7-44398_app-0_..._720P_Demo.bin`（1,357,328 字节）。
 
 **已知限制**
 
-1. **GDB 暂时不可用。** 公开工具链里的 `csky-elfabiv2-gdb.exe` 是 32 位程序，依赖 `libexpat-1.dll`，
-   而压缩包里**没有**这个 DLL，所以直接运行会无输出地失败（Windows 退出码 `0xC000007B`
-   = `STATUS_INVALID_IMAGE_FORMAT`，即依赖 DLL 加载失败；在 Git Bash 里则显示为 127）。
-   本机现有的 `libexpat-1.dll`（Git、Inkscape、FreeCAD 等）都是 64 位的，无法加载。
-   **建议的解决方式就是安装 CDK**，它自带完整可用的 GDB；不要随便从其他软件目录拷贝 DLL。
-   （`env.cmd` 里用 `||` 而不是 `if errorlevel 1` 判断，就是因为这个退出码是负数。）
+1. **独立工具链的 GDB 原本不可用，现已修好。** `csky-elfabiv2-gdb.exe` 是 32 位程序，依赖
+   `libexpat-1.dll`，而该压缩包里**没有**这个 DLL，所以直接运行会无输出地失败（Windows 退出码
+   `0xC000007B` = `STATUS_INVALID_IMAGE_FORMAT`；Git Bash 里显示为 127）。
+   好消息是 **CDK 安装目录里带了一份 32 位同版本 DLL**：
+   `D:\C-SKY\CDK\CSKY\MinGW\bin\libexpat-1.dll`。`env.ps1` / `env.cmd` 现在会把该目录
+   **追加**到 PATH 末尾（不是前置），gdb 即可正常加载，同时不会让 CDK 的 `make.exe` 遮蔽你已有的 make。
+   若哪台机器没装 CDK，gdb 仍然不可用。
 2. **105 个头文件目录在公开仓库中不存在**（如 `sdk/driver/isp`、`sdk/lib/VFS`、`sdk/app/AI_alarm_clock` 等）。
    这是**预期行为**，不是克隆不完整：这些模块（ISP、H.264、USB、SD、Audio、Wi-Fi 等）以 `libs/` 里的
-   预编译静态库形式提供，SDK 本身不是全源码交付。CDK 能容忍不存在的 include 目录。
-3. **CDK 尚未安装** —— 上面第 5.1 节是唯一剩余的手动步骤，装完才能真正编译和烧录。
-4. 仓库里有一处历史遗留路径：`project/txw82xApp/txw82xApp.cdkproj` 的 include 列表里仍写着
-   `../../SDK_2.7.0/sdk/driver/sha`（旧版本目录名）。不影响编译，但如果要严格清理可以改掉。
+   预编译静态库形式提供，SDK 本身不是全源码交付。CDK 能容忍不存在的 include 目录，实际编译已验证通过。
+3. 仓库里有一处历史遗留路径：`project/txw82xApp/txw82xApp.cdkproj` 的 include 列表里仍写着
+   `../../SDK_2.7.0/sdk/driver/sha`（旧版本目录名）。不影响编译（固件已成功编译），如需严格清理可以改掉。
+4. **厂商 `.gitignore` 漏掉了双核工程的构建产物。** 它的规则锚定在 `/project/`，而 CDK 实际把产物写在
+   `project/txw82xCore/` 和 `project/txw82xApp/` 子目录下，所以全部匹配不上——`git add -A` 会试图暂存约
+   **580 MB** 的 `Obj/`、`Lst/`、`.cache/` 以及生成的固件。已在本仓库 `.gitignore` 末尾补齐镜像规则
+   （`/project/*/Obj/` 等），正常提交不会再误带构建产物。
 
 ---
 
