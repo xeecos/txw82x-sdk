@@ -33,3 +33,10 @@
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# ---------------------------------------------------------------------------
+# Local development environment - not part of the vendor SDK.
+# The C-SKY toolchain and the DebugServer installer are ~400 MB of binaries, so
+# they are fetched by setup_tools.ps1 rather than committed. See ENVIRONMENT.md.
+# ---------------------------------------------------------------------------
+/txw_tools/
